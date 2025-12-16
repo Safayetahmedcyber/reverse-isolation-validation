@@ -1,54 +1,40 @@
-
-# Validating Reverse Isolation Between Devices Using Wireshark and ICMP Ping
+# Reverse Isolation Validation
 
 ## Objective
-Confirm bidirectional network isolation between a laptop and a mobile device connected to separate Wi‑Fi networks (main and guest) by analyzing ICMP traffic and ARP behavior in Wireshark.
+Confirm bidirectional network isolation between a laptop and a mobile device connected to separate Wi-Fi networks (main and guest) by analyzing ICMP traffic and ARP behavior in Wireshark.
+
+## About
+This project validates network isolation between devices on separate Wi-Fi networks (main and guest) by analyzing ICMP traffic with Wireshark and ping. It captures and interprets packets to determine if devices can communicate across isolated networks. Tests include VPN tunneling to evaluate its effect on traffic visibility and isolation enforcement.
 
 ## Environment Setup
-- Laptop: Connected to main Wi‑Fi (Example IP: 192.168.1.10)
-- Mobile: Connected to guest Wi‑Fi (Example IP: 192.168.50.20)
-- Router: Guest isolation enabled
-- Tools: Wireshark (latest stable), OS-native ping utilities
+- Laptop: Windows 11, Wireshark v4.0
+- Mobile: Android 13
+- Router: TP-Link Archer AX55
+- VPN: ProtonVPN (WireGuard protocol)
 
-## Prerequisites
-- Admin access to router settings
-- Basic knowledge of Wireshark filters
-- Device IPs and gateways identified
-- Time synchronization optional but useful
+## Test Procedure
+1. Connect laptop to main Wi-Fi, mobile to guest Wi-Fi.
+2. Run ICMP ping from mobile to laptop.
+3. Capture traffic on laptop using Wireshark.
+4. Repeat in reverse direction.
+5. Test again with VPN enabled on both devices.
+6. Check ARP requests → expect no replies
+7. Scan for unintended broadcasts
+8. Save pcap and ping logs
 
-## Network Assumptions
-- Main and guest SSIDs use different subnets (e.g., 192.168.1.0/24 vs 192.168.50.0/24)
-- Guest SSID mapped to isolated VLAN
-- No broadcast bridging between SSIDs
-
-## Checklist
-1. Verify SSID separation
-2. Confirm IP ranges differ
-3. Enable guest/client isolation
-4. Start Wireshark capture
-5. Run bidirectional ping tests
-6. Validate ARP behavior
-7. Save results
-
-## Wireshark Filters
-- ICMP only: `icmp`
-- ARP only: `arp`
-- ICMP between specific IPs:  
-  `icmp && (ip.src == 192.168.1.10 && ip.dst == 192.168.50.20) || (ip.src == 192.168.50.20 && ip.dst == 192.168.1.10)`
-- ICMP or ARP: `icmp or arp`
-
-## Validation Steps
-1. Record baseline IPs and gateways
-2. Start Wireshark on laptop Wi‑Fi interface
-3. Ping mobile from laptop → expect timeout
-4. Ping laptop from mobile → expect timeout
-5. Check ARP requests → expect no replies
-6. Scan for unintended broadcasts
-7. Save pcap and ping logs
+## Results
+- Ping: No response across networks ✅
+- ARP: Requests not resolved across networks ✅
+- VPN: Tunnel does not bypass router isolation ✅
 
 ## Pass/Fail Criteria
-- Pass: No ping replies, no ARP resolution, no cross‑SSID traffic
-- Fail: Any successful ping, ARP reply, or cross‑SSID traffic observed
+- **Pass**: No ping replies, no ARP resolution, no cross‑SSID traffic  
+- **Fail**: Any successful ping, ARP reply, or cross‑SSID traffic observed
+
+## Security Interpretation
+- Isolation confirmed between guest and main networks.
+- ARP traffic contained within each network, no leakage observed.
+- VPN traffic remains encrypted but does not break isolation.
 
 ## Troubleshooting
 - Ensure guest isolation is enabled
@@ -69,7 +55,7 @@ Confirm bidirectional network isolation between a laptop and a mobile device con
 ## Documentation Templates
 
 ### Ping Log Example
-```
+
 Pinging 192.168.50.20 with 32 bytes of data:
 Request timed out.
 Request timed out.
@@ -78,7 +64,7 @@ Request timed out.
 
 Ping statistics for 192.168.50.20:
     Packets: Sent = 4, Received = 0, Lost = 4 (100% loss)
-```
+`
 
 ### Wireshark Notes Example
 - Filter: `icmp or arp`
@@ -94,6 +80,17 @@ Ping statistics for 192.168.50.20:
 - Weekly: Run ping and ARP tests
 - Monthly: Audit router firmware and firewall rules
 - After changes: Re‑validate isolation immediately
+
+## Lessons Learned / Next Steps
+- Plan to test IPv6 and multicast traffic.
+- Explore VLAN-based isolation in future setups.
+- Document additional scenarios such as IoT devices on guest Wi-Fi.
+
+## Status
+![Status: Validated](https://img.shields.io/badge/status-validated-brightgreen)
+
+## Tags
+cybersecurity` `network-analysis` `Wireshark` `ping` `home-lab`
 ```
 
-
+T
