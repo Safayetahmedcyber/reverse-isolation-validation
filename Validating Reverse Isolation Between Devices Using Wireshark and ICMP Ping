@@ -1,0 +1,230 @@
+
+
+
+Project title :  Validating reverse isolation between devices using Wireshark and ICMP ping
+
+---
+ ### Objective
+
+Confirm bidirectional network isolation between a laptop and a mobile device connected to separate Wi‑Fi networks (main and guest) by analyzing ICMP traffic and ARP behavior in Wireshark.
+
+---
+
+## Scope
+
+- **Isolation target:** No direct layer 3 connectivity between devices across main and guest SSIDs.
+- **Traffic focus:** ICMP echo requests/replies, ARP, and any unexpected L2/L3 broadcasts crossing SSIDs.
+- **Outcome:** Documented proof that pings fail, ARP does not resolve across networks, and no unicast or multicast traverses between devices.
+
+---
+
+## Environment setup
+
+- Laptop (main Wi‑Fi): Example IP: 192.168.1.10
+- Mobile (guest Wi‑Fi): Example IP: 192.168.50.20
+- Router: Guest isolation enabled; client‑to‑client blocking on guest SSID enabled
+- Monitoring tool: Wireshark (latest stable)
+- Ping tool: OS‑native ping on laptop and mobile
+
+> Tip: Replace IPs above with your actual addresses and redact them before publishing.
+
+---
+
+## Prerequisites
+
+- Admin access: Ability to toggle guest isolation and client isolation on the router
+- Wireshark filters:Basic use of display filters
+- Device info:Each device’s IP, gateway IP, and interface names
+- Time sync: Optional but helpful for correlating events across devices
+
+---
+
+## Network assumptions
+
+- **Different subnets:** Main and guest are on separate IP ranges (e.g., 192.168.1.0/24 vs 192.168.50.0/24)
+- **Different VLANs:** Guest SSID mapped to isolated VLAN with east‑west blocking
+- **No shared L2 bridging:** AP does not bridge broadcast frames between SSIDs
+
+---
+
+## Quick checklist
+
+- **Verify SSID separation:** Main and guest SSIDs active and distinct
+- **Confirm IP ranges:** Devices have IPs in different subnets
+- **Enable isolation:** Guest isolation and client isolation toggled on
+- **Baseline capture:** Wireshark running before any tests
+- **Run bidirectional pings:** Laptop → Mobile, then Mobile → Laptop
+- **Validate ARP behavior:** No successful ARP resolution across SSIDs
+- **Document results:** Save pcap and ping outputs
+
+---
+
+## Wireshark display filters
+
+- **ICMP only:**
+  - `icmp`
+- **ARP only:**
+  - `arp`
+- **ICMP between specific IPs:**
+  - `icmp && (ip.src == 192.168.1.10 && ip.dst == 192.168.50.20) || (ip.src == 192.168.50.20 && ip.dst == 192.168.1.10)`
+- **Block all but ARP and ICMP:**
+  - `icmp or arp`
+- **Exclude local subnet noise (example):**
+  - `icmp && !(ip.dst == 192.168.1.1)`
+
+> Tip: Update IPs to match your devices. Keep one filter active at a time for clarity.
+
+---
+
+## Step‑by‑step validation
+
+### 1. Record baseline network details
+
+- **Laptop IP and gateway:** Run `ipconfig` (Windows) or `ip addr` and `route -n` (Linux)
+- **Mobile IP and gateway:** Check Wi‑Fi details in OS settings
+- **SSID and BSSID:** Note the SSIDs and AP MACs for each device
+
+### 2. Prepare Wireshark capture
+
+- **Select interface:** Choose the laptop’s active Wi‑Fi interface
+- **Apply filter:** Start with `icmp or arp`
+- **Start capture:** Begin recording before any ping tests
+
+### 3. Test laptop → mobile (main → guest)
+
+- **Send ping:** From laptop, ping the mobile’s IP
+- **Expected result:** Ping times out; Wireshark shows ARP requests for target IP with no replies; no ICMP echo replies
+- **Capture notes:** ICMP echo requests may not appear if routing blocks before send; ARP will attempt resolution if same subnet is assumed, otherwise only default gateway resolution is seen
+
+### 4. Test mobile → laptop (guest → main)
+
+- **Send ping:** From mobile (terminal app or OS ping), ping the laptop’s IP
+- **Expected result:** Ping times out; no ICMP echo replies observed on laptop; no cross‑SSID ARP success
+
+### 5. Validate ARP isolation
+
+- **Filter to ARP:** Switch to `arp`
+- **Expected pattern:** ARP requests do not resolve across SSIDs; no ARP reply from the other device’s MAC; ARP cache remains incomplete for the remote device
+
+### 6. Confirm no unintended broadcast or multicast
+
+- **Scan for L2 spillover:** Temporarily remove filters and check for unusual broadcasts referencing the other subnet
+- **Expected result:** No device‑to‑device traffic across SSIDs beyond typical gateway or DHCP traffic scoped to each VLAN
+
+### 7. Save artifacts
+
+- **Save pcap:** Name with timestamp, e.g., `isolation-validation_YYYYMMDD_main-wifi.pcapng`
+- **Export ping logs:** Copy CLI outputs and annotate pass/fail
+- **Document router settings:** Screenshot isolation toggles (redact SSID names if publishing)
+
+---
+
+## Pass and fail criteria
+
+- **Pass:**  
+  - **Ping:** No echo replies in both directions  
+  - **ARP:** No ARP resolution for the other device’s IP or MAC  
+  - **Traffic:** No unicast, multicast, or broadcasts from one SSID reaching the other beyond routed internet traffic via gateways
+
+- **Fail:**  
+  - **Ping:** Any successful echo reply in either direction  
+  - **ARP:** ARP replies revealing MAC of the other device across SSIDs  
+  - **Traffic:** Observed cross‑SSID frames or routed paths that allow direct device reachability
+
+---
+
+## Troubleshooting if isolation fails
+
+- **Router isolation not enabled:** Confirm guest isolation and client‑to‑client blocking settings are on
+- **Bridged SSIDs or AP mesh quirks:** Ensure SSIDs are mapped to separate VLANs and not bridged
+- **Firewall rules missing:** Add explicit inter‑VLAN deny rules for east‑west device traffic
+- **mDNS or broadcast leakage:** Disable inter‑SSID service discovery forwarding
+- **Static routes or ACL exceptions:** Remove any routes allowing guest to reach main subnet
+- **VPN effects:**  
+  - **Laptop VPN:** If laptop is on a VPN, ICMP could be encapsulated and bypass local isolation; test with VPN off or enforce split‑tunnel rules  
+  - **Mobile VPN:** Same consideration; verify that ping targets are local IPs, not VPN peer IPs
+
+---
+
+## Recommended router settings
+
+- **Enable guest isolation:** Prevent guest clients from reaching main network clients
+- **Enable client isolation on guest:** Block client‑to‑client within guest SSID
+- **Separate VLANs and subnets:** Distinct VLAN IDs and IP ranges for main and guest
+- **Inter‑VLAN firewall:** Default deny from guest to main; allow only WAN egress
+- **Disable L2 cross‑SSID forwarding:** No broadcast or multicast bridging
+- **Restrict service discovery:** Block or scope mDNS, SSDP, and NBNS across SSIDs
+
+---
+
+## Optional advanced checks
+
+- **TTL inspection:** Verify no ICMP replies with unexpected TTL hinting at routed detours
+- **Gateway behavior:** Confirm gateway does not proxy‑ARP between VLANs
+- **NDP for IPv6:** If IPv6 is enabled, repeat tests with `icmpv6` and `ndp` filters
+- **DHCP scope isolation:** Ensure DHCP servers are scoped per VLAN and not reachable cross‑SSID
+
+---
+
+## Documentation templates
+
+### Ping log template
+
+- **Test:** Laptop → Mobile  
+- **Source IP:** 192.168.1.10  
+- **Destination IP:** 192.168.50.20  
+- **Command output:**  
+  ```
+  Pinging 192.168.50.20 with 32 bytes of data:
+  Request timed out.
+  Request timed out.
+  Request timed out.
+  Request timed out.
+
+  Ping statistics for 192.168.50.20:
+      Packets: Sent = 4, Received = 0, Lost = 4 (100% loss)
+  ```
+- **Result:** Pass (no reply)
+
+- **Test:** Mobile → Laptop  
+- **Source IP:** 192.168.50.20  
+- **Destination IP:** 192.168.1.10  
+- **Command output:**  
+  ```
+  PING 192.168.1.10: timeout
+  PING 192.168.1.10: timeout
+  PING 192.168.1.10: timeout
+  PING 192.168.1.10: timeout
+  ```
+- **Result:** Pass (no reply)
+
+### Wireshark notes template
+
+- **Filter used:** `icmp or arp`  
+- **Observation:** No ICMP echo replies, ARP requests unresolved across SSIDs  
+- **Time range:** 2025‑12‑16 17:53–18:05 AEDT  
+- **File saved:** `isolation-validation_20251216_main-wifi.pcapng`
+
+---
+
+## Privacy and publishing
+
+- **Redact sensitive data:** IP addresses, MACs, SSIDs, router models, and screenshots before committing to GitHub
+- **Keep raw pcaps private:** Share summaries or sanitized exports if needed
+- **Document configuration generically:** Describe isolation settings without exposing exact network layout
+
+---
+
+## Maintenance routine
+
+- **Weekly:** Re‑run bidirectional ping tests and confirm ARP isolation; save new pcaps
+- **Monthly:** Audit router firmware and isolation toggles; review firewall rules
+- **After changes:** Re‑validate immediately after any network or router update
+
+---
+
+## Notes
+
+- **False positives:** VPNs and overlay networks can mask or reroute ICMP, leading to confusing results—test with VPNs off or controlled split‑tunnel.
+- **Layer boundaries:** ARP isolation indicates L2 separation; ICMP failure indicates L3 separation. Both are needed to claim strong isolation.
+- **Family safety:** Isolation protects devices from lateral movement but does not replace endpoint security; keep OS and apps updated.
